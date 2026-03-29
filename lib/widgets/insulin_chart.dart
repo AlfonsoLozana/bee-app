@@ -26,7 +26,7 @@ class InsulinChart extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Curva de Insulina',
+              const Text('Nivel de Glucosa',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary)),
               const SizedBox(height: 2),
@@ -34,9 +34,7 @@ class InsulinChart extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
             ]),
             const Row(children: [
-              _LegendDot(color: AppColors.primary,    label: 'Insulina'),
-              SizedBox(width: 12),
-              _LegendDot(color: Color(0x8022D3EE), label: 'Rango'),
+              _LegendDot(color: AppColors.primary, label: 'Glucosa'),
             ]),
           ],
         ),
@@ -56,8 +54,6 @@ class InsulinChart extends StatelessWidget {
     final spots = readings.asMap().entries
         .map((e) => FlSpot(e.key.toDouble(), e.value.value))
         .toList();
-    final hiSpots = spots.map((s) => FlSpot(s.x, (s.y + 40).clamp(0, 300))).toList();
-    final loSpots = spots.map((s) => FlSpot(s.x, (s.y - 40).clamp(0, 300))).toList();
 
     return LineChartData(
       minY: 50,
@@ -91,61 +87,61 @@ class InsulinChart extends StatelessWidget {
         touchTooltipData: LineTouchTooltipData(
           getTooltipColor: (_) => AppColors.surface3,
           getTooltipItems: (spots) => spots.map((s) {
-            if (s.barIndex != 2) return null;
-            return LineTooltipItem('${s.y.toStringAsFixed(0)} pmol/L',
+            return LineTooltipItem('${s.y.toStringAsFixed(0)} mg/dL',
               const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600));
           }).toList(),
         ),
       ),
       extraLinesData: ExtraLinesData(
         horizontalLines: [
+          // Límite bajo (70 mg/dL)
           HorizontalLine(
-            y: 80,
-            color: AppColors.success.withValues(alpha: 0.3),
-            strokeWidth: 1, dashArray: [6, 4],
+            y: 70,
+            color: AppColors.warning.withValues(alpha: 0.4),
+            strokeWidth: 1.5,
+            dashArray: [6, 4],
             label: HorizontalLineLabel(
-              show: true, alignment: Alignment.topLeft,
-              labelResolver: (_) => 'Límite bajo',
-              style: const TextStyle(fontSize: 9, color: AppColors.success),
+              show: true,
+              alignment: Alignment.topLeft,
+              labelResolver: (_) => 'Límite bajo (70)',
+              style: const TextStyle(fontSize: 9, color: AppColors.warning),
+            ),
+          ),
+          // Límite alto (180 mg/dL)
+          HorizontalLine(
+            y: 180,
+            color: AppColors.danger.withValues(alpha: 0.4),
+            strokeWidth: 1.5,
+            dashArray: [6, 4],
+            label: HorizontalLineLabel(
+              show: true,
+              alignment: Alignment.bottomLeft,
+              labelResolver: (_) => 'Límite alto (180)',
+              style: const TextStyle(fontSize: 9, color: AppColors.danger),
             ),
           ),
         ],
       ),
       lineBarsData: [
-        // Banda de rango superior
-        LineChartBarData(
-          spots: hiSpots,
-          color: Colors.transparent,
-          belowBarData: BarAreaData(
-            show: true, color: AppColors.cyan.withValues(alpha: 0.12)),
-          dotData: const FlDotData(show: false), barWidth: 0,
-        ),
-        // Límite inferior (dashed)
-        LineChartBarData(
-          spots: loSpots,
-          color: AppColors.cyan.withValues(alpha: 0.25),
-          dotData: const FlDotData(show: false),
-          barWidth: 1, dashArray: [4, 4],
-        ),
-        // Línea principal de insulina
+        // Línea principal de glucosa
         LineChartBarData(
           spots: spots,
           color: AppColors.primary,
           barWidth: 2.5,
-          isCurved: true, curveSmoothness: 0.35,
+          isCurved: true,
+          curveSmoothness: 0.35,
           belowBarData: BarAreaData(
             show: true,
             gradient: LinearGradient(
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
-              colors: [AppColors.primary.withValues(alpha: 0.35), Colors.transparent],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                AppColors.primary.withValues(alpha: 0.35),
+                Colors.transparent,
+              ],
             ),
           ),
-          dotData: FlDotData(
-            getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-              radius: 4, color: AppColors.primary,
-              strokeWidth: 2, strokeColor: AppColors.surface,
-            ),
-          ),
+          dotData: const FlDotData(show: false),  // Sin puntos, solo línea
         ),
       ],
     );

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/insulin_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/current_value_card.dart';
 import '../widgets/chart_range_tabs.dart';
 import '../widgets/insulin_chart.dart';
 import '../widgets/mini_stats_grid.dart';
 import '../widgets/dose_history_list.dart';
+import '../widgets/register_dose_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userName = context.watch<InsulinProvider>().userName;
+    
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: CustomScrollView(
@@ -39,17 +44,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       alignment: Alignment.center,
-                      child: const Text('AL', style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                      child: Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Buenos días,',
+                        const Text('Buenos días,',
                           style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                        Text('Alfonso 👋', style: TextStyle(
+                        Text('$userName 👋', style: const TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary)),
                       ],
@@ -104,20 +111,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showRegisterSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface2,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => const Padding(
-        padding: EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Registrar Dosis', style: TextStyle(
-            fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-          SizedBox(height: 20),
-          Text('Formulario de nueva dosis aquí...',
-            style: TextStyle(color: AppColors.textMuted)),
-          SizedBox(height: 40),
-        ]),
-      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const RegisterDoseSheet(),
     );
   }
 }

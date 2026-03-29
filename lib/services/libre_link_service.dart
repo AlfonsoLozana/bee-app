@@ -22,6 +22,8 @@ class LibreLinkService {
   String? _token;
   String? _patientId;
   String? _accountId;
+  String? firstName;
+  String? lastName;
 
   bool get isAuthenticated => _token != null;
 
@@ -81,13 +83,17 @@ class LibreLinkService {
     _token = ticket?['token'] as String?;
     if (_token == null) throw LibreAuthException('Token nulo.');
 
+    // Guardar firstName y lastName del usuario
+    firstName = user?['firstName'] as String?;
+    lastName  = user?['lastName']  as String?;
+
     // SHA-256 del user.id — igual que hace pylibrelinkup
     final userId = user?['id']?.toString();
     if (userId != null) {
       _accountId = sha256.convert(utf8.encode(userId)).toString();
     }
 
-    debugPrint('✅ Login OK | account-id (SHA-256): $_accountId');
+    debugPrint('✅ Login OK | account-id (SHA-256): $_accountId | Nombre: $firstName $lastName');
   }
 
   // ── Connections / patients ────────────────────────────────
@@ -229,6 +235,7 @@ class LibreLinkService {
 
   void logout() {
     _token = _patientId = _accountId = null;
+    firstName = lastName = null;
   }
 }
 

@@ -62,9 +62,11 @@ class CurrentValueCard extends StatelessWidget {
               ]),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 _StatusBadge(status: status),
-                const SizedBox(height: 10),
-                const Text('↑ +8% vs ayer',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                if (p.yesterdayComparison != null) ...[
+                  const SizedBox(height: 10),
+                  Text(p.yesterdayComparison!,
+                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                ],
               ]),
             ],
           ),
