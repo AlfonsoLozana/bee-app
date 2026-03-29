@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/insulin_provider.dart';
-import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -25,7 +25,8 @@ class InsulinTrackerApp extends StatelessWidget {
         title: 'InsulinTracker',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
-        home: const HomeScreen(),
+        // Siempre arranca en login; HomeScreen se carga tras auth exitosa
+        home: const LoginScreen(),
       ),
     );
   }

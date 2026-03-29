@@ -1,3 +1,6 @@
+// lib/providers/insulin_provider.dart
+// VERSIÓN COMPLETA — reemplaza el archivo anterior íntegramente
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../services/libre_link_service.dart';
@@ -8,6 +11,7 @@ import '../models/insulin_reading.dart';
 class InsulinProvider extends ChangeNotifier {
   final LibreLinkService _service = LibreLinkService();
 
+  // ── Estado de auth ────────────────────────────────────
   bool _isAuthenticated = false;
   bool get isAuthenticated => _isAuthenticated;
 
@@ -17,6 +21,7 @@ class InsulinProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  // ── Datos de glucosa ──────────────────────────────────
   double _currentValue = 0;
   double get currentValue => _currentValue;
 
@@ -25,24 +30,29 @@ class InsulinProvider extends ChangeNotifier {
   ChartRange _selectedRange = ChartRange.oneDay;
   ChartRange get selectedRange => _selectedRange;
 
+  // ── Stats del día ─────────────────────────────────────
   double _minToday = 0;
   double _maxToday = 0;
   double _averageToday = 0;
   double _tir = 0;
 
-  double get minToday     => _minToday;
-  double get maxToday     => _maxToday;
-  double get averageToday => _averageToday;
-  double get tir          => _tir;
-  double get cv           => 32.0;
-  double get hba1cEst     => _averageToday > 0 ? ((_averageToday + 46.7) / 28.7) : 0;
-  int    get dosesToday   => 0;
+  double get minToday      => _minToday;
+  double get maxToday      => _maxToday;
+  double get averageToday  => _averageToday;
+  double get tir           => _tir;
+  double get cv            => 32.0;
+  double get hba1cEst      => _averageToday > 0
+      ? ((_averageToday + 46.7) / 28.7)
+      : 0;
+  int    get dosesToday    => 0;
 
   List<InsulinReading> get readings => _filteredReadings();
   final List<DoseRecord> doses = [];
 
   Timer? _pollTimer;
   static const _pollInterval = Duration(minutes: 1);
+
+  // ── Auth ──────────────────────────────────────────────
 
   Future<bool> login(String email, String password) async {
     _setLoading(true);
@@ -61,7 +71,7 @@ class InsulinProvider extends ChangeNotifier {
       _errorMessage = 'Credenciales incorrectas. Verifica tu email y contraseña.';
       debugPrint('Auth error: $e');
     } on LibreDataException catch (e) {
-      _errorMessage = 'Error obteniendo datos: \${e.message}';
+      _errorMessage = 'Error obteniendo datos: ${e.message}';
       debugPrint('Data error: $e');
     } catch (e) {
       _errorMessage = 'Error de conexión. Verifica tu internet.';
@@ -80,6 +90,8 @@ class InsulinProvider extends ChangeNotifier {
     _pollTimer?.cancel();
     notifyListeners();
   }
+
+  // ── Fetching ──────────────────────────────────────────
 
   Future<void> _initialFetch() async {
     final apiReadings = await _service.fetchGraph();
@@ -126,34 +138,4 @@ class InsulinProvider extends ChangeNotifier {
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
-  }
-
-  List<InsulinReading> _filteredReadings() {
-    if (_readings.isEmpty) return [];
-    final cutoff = DateTime.now().subtract(switch (_selectedRange) {
-      ChartRange.oneDay      => const Duration(hours: 24),
-      ChartRange.threeDays   => const Duration(days: 3),
-      ChartRange.oneWeek     => const Duration(days: 7),
-      ChartRange.oneMonth    => const Duration(days: 30),
-      ChartRange.threeMonths => const Duration(days: 90),
-    });
-    return _readings.where((r) => r.timestamp.isAfter(cutoff)).toList();
-  }
-
-  void setRange(ChartRange range) {
-    _selectedRange = range;
-    _loadFromDatabase();
-  }
-
-  void _setLoading(bool v) {
-    _isLoading = v;
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _pollTimer?.cancel();
-    super.dispose();
-  }
-}
+    

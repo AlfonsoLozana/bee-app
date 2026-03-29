@@ -38,6 +38,10 @@ dependencies:
   google_fonts: ^8.0.2
   provider: ^6.1.5+1
   intl: ^0.20.2
+  http: ^1.2.1
+  sqflite: ^2.3.3+1
+  path: ^1.9.0
+  crypto: ^3.0.3 
 
 dev_dependencies:
   flutter_test:
