@@ -13,6 +13,8 @@ class InsulinChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final prov     = context.watch<InsulinProvider>();
     final readings = prov.readings;
+    final lowLimit = prov.lowLimit;
+    final highLimit = prov.highLimit;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -42,7 +44,7 @@ class InsulinChart extends StatelessWidget {
         SizedBox(
           height: 180,
           child: LineChart(
-            _buildChart(readings),
+            _buildChart(readings, lowLimit, highLimit),
             duration: const Duration(milliseconds: 600),
           ),
         ),
@@ -50,7 +52,7 @@ class InsulinChart extends StatelessWidget {
     );
   }
 
-  LineChartData _buildChart(List<InsulinReading> readings) {
+  LineChartData _buildChart(List<InsulinReading> readings, int lowLimit, int highLimit) {
     final spots = readings.asMap().entries
         .map((e) => FlSpot(e.key.toDouble(), e.value.value))
         .toList();
@@ -94,29 +96,29 @@ class InsulinChart extends StatelessWidget {
       ),
       extraLinesData: ExtraLinesData(
         horizontalLines: [
-          // Límite bajo (70 mg/dL)
+          // Límite bajo (dinámico)
           HorizontalLine(
-            y: 70,
+            y: lowLimit.toDouble(),
             color: AppColors.warning.withValues(alpha: 0.4),
             strokeWidth: 1.5,
             dashArray: [6, 4],
             label: HorizontalLineLabel(
               show: true,
               alignment: Alignment.topLeft,
-              labelResolver: (_) => 'Límite bajo (70)',
+              labelResolver: (_) => 'Límite bajo ($lowLimit)',
               style: const TextStyle(fontSize: 9, color: AppColors.warning),
             ),
           ),
-          // Límite alto (180 mg/dL)
+          // Límite alto (dinámico)
           HorizontalLine(
-            y: 180,
+            y: highLimit.toDouble(),
             color: AppColors.danger.withValues(alpha: 0.4),
             strokeWidth: 1.5,
             dashArray: [6, 4],
             label: HorizontalLineLabel(
               show: true,
               alignment: Alignment.bottomLeft,
-              labelResolver: (_) => 'Límite alto (180)',
+              labelResolver: (_) => 'Límite alto ($highLimit)',
               style: const TextStyle(fontSize: 9, color: AppColors.danger),
             ),
           ),

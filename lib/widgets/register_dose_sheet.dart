@@ -19,6 +19,7 @@ class _RegisterDoseSheetState extends State<RegisterDoseSheet> {
   final _noteController = TextEditingController();
   
   DoseType _selectedType = DoseType.rapid;
+  DateTime _selectedDateTime = DateTime.now();
   bool _isSubmitting = false;
 
   @override
@@ -29,6 +30,87 @@ class _RegisterDoseSheetState extends State<RegisterDoseSheet> {
     super.dispose();
   }
 
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDateTime,
+      firstDate: DateTime.now().subtract(const Duration(days: 7)),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.primary,
+              surface: AppColors.surface2,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDateTime = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          _selectedDateTime.hour,
+          _selectedDateTime.minute,
+        );
+      });
+    }
+  }
+
+  Future<void> _selectTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.primary,
+              surface: AppColors.surface2,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDateTime = DateTime(
+          _selectedDateTime.year,
+          _selectedDateTime.month,
+          _selectedDateTime.day,
+          picked.hour,
+          picked.minute,
+        );
+      });
+    }
+  }
+
+  String _formatDateTime() {
+    final now = DateTime.now();
+    final isToday = _selectedDateTime.year == now.year &&
+        _selectedDateTime.month == now.month &&
+        _selectedDateTime.day == now.day;
+    
+    if (isToday) {
+      return 'Hoy, ${_formatTime(_selectedDateTime)}';
+    } else {
+      return '${_selectedDateTime.day}/${_selectedDateTime.month}/${_selectedDateTime.year}, ${_formatTime(_selectedDateTime)}';
+    }
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   Future<void> _submitDose() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -36,7 +118,7 @@ class _RegisterDoseSheetState extends State<RegisterDoseSheet> {
 
     try {
       final dose = DoseRecord(
-        timestamp: DateTime.now(),
+        timestamp: _selectedDateTime,
         type: _selectedType,
         units: double.parse(_unitsController.text),
         insulinName: _insulinNameController.text.trim(),
@@ -202,6 +284,91 @@ class _RegisterDoseSheetState extends State<RegisterDoseSheet> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 20),
+
+              // Fecha y hora
+              const Text(
+                'Fecha y hora',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: _selectDate,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface3,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _formatDateTime().split(', ')[0],
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.calendar_today,
+                              color: AppColors.textMuted,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      onTap: _selectTime,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface3,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _formatTime(_selectedDateTime),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.access_time,
+                              color: AppColors.textMuted,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 

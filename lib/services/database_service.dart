@@ -67,7 +67,8 @@ class DatabaseService {
     );
   }
 
-  /// Inserta o ignora si ya existe (UNIQUE en timestamp)
+  /// Inserta o actualiza si ya existe (UNIQUE en timestamp)
+  /// La API de LibreLink ajusta valores con el tiempo, por lo que actualizamos
   static Future<void> insertReadings(List<GlucoseReading> readings) async {
     final db = await database;
     final batch = db.batch();
@@ -77,7 +78,7 @@ class DatabaseService {
         'value':     r.value,
         'is_high':   r.isHigh ? 1 : 0,
         'is_low':    r.isLow  ? 1 : 0,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }, conflictAlgorithm: ConflictAlgorithm.replace);  // ✅ SOBRESCRIBE si existe
     }
     await batch.commit(noResult: true);
   }
@@ -255,5 +256,15 @@ class DatabaseService {
       insulinName:  row['insulin_name'] as String,
       note:         row['note'] as String?,
     )).toList();
+  }
+
+  /// Eliminar una dosis
+  static Future<void> deleteDose(DoseRecord dose) async {
+    final db = await database;
+    await db.delete(
+      'dose_records',
+      where: 'timestamp = ?',
+      whereArgs: [dose.timestamp.millisecondsSinceEpoch],
+    );
   }
 }

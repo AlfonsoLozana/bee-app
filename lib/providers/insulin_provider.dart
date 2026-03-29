@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/libre_link_service.dart';
 import '../services/database_service.dart';
 import '../models/chart_range.dart';
@@ -17,7 +18,15 @@ class InsulinProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  String? _userEmail;
   String get userName => _service.firstName ?? 'Usuario';
+  String get userEmail => _userEmail ?? 'No disponible';
+
+  // Límites personalizables
+  int _lowLimit = 70;
+  int _highLimit = 180;
+  int get lowLimit => _lowLimit;
+  int get highLimit => _highLimit;
 
   double _currentValue = 0;
   double get currentValue => _currentValue;
@@ -124,7 +133,9 @@ class InsulinProvider extends ChangeNotifier {
       await _service.login(email, password);
       await _service.fetchPatientId();
       _isAuthenticated = true;
+      _userEmail = email;  // Guardar email del usuario
       await _initialFetch();
+      await loadSettings();  // Cargar límites desde SharedPreferences
       _startPolling();
       notifyListeners();
       return true;
@@ -146,6 +157,7 @@ class InsulinProvider extends ChangeNotifier {
   void logout() {
     _service.logout();
     _isAuthenticated = false;
+    _userEmail = null;  // Limpiar email
     _readings.clear();
     _currentValue = 0;
     _pollTimer?.cancel();
@@ -208,6 +220,37 @@ class InsulinProvider extends ChangeNotifier {
   Future<void> addDose(DoseRecord dose) async {
     await DatabaseService.insertDose(dose);
     _doses = await DatabaseService.getRecentDoses(limit: 10);
+    notifyListeners();
+  }
+
+  /// Eliminar una dosis de insulina
+  Future<void> deleteDose(DoseRecord dose) async {
+    await DatabaseService.deleteDose(dose);
+    _doses = await DatabaseService.getRecentDoses(limit: 10);
+    notifyListeners();
+  }
+
+  /// Cargar límites de glucosa desde SharedPreferences
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _lowLimit = prefs.getInt('lowLimit') ?? 70;
+    _highLimit = prefs.getInt('highLimit') ?? 180;
+    notifyListeners();
+  }
+
+  /// Establecer límite bajo de glucosa
+  Future<void> setLowLimit(int value) async {
+    _lowLimit = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('lowLimit', value);
+    notifyListeners();
+  }
+
+  /// Establecer límite alto de glucosa
+  Future<void> setHighLimit(int value) async {
+    _highLimit = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('highLimit', value);
     notifyListeners();
   }
 
