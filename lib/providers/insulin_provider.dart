@@ -134,6 +134,11 @@ class InsulinProvider extends ChangeNotifier {
       await _service.fetchPatientId();
       _isAuthenticated = true;
       _userEmail = email;  // Guardar email del usuario
+      
+      // Guardar credenciales y token para auto-login futuro
+      await _service.saveCredentials(email, password);
+      await _service.saveToken();
+      
       await _initialFetch();
       await loadSettings();  // Cargar límites desde SharedPreferences
       _startPolling();
@@ -154,8 +159,79 @@ class InsulinProvider extends ChangeNotifier {
     return false;
   }
 
-  void logout() {
+  /// Intenta auto-login usando credenciales guardadas
+  Future<bool> tryAutoLogin() async {
+    _setLoading(true);
+    notifyListeners();
+
+    try {
+      // 1. Intentar cargar token guardado
+      final hasToken = await _service.loadToken();
+      
+      if (hasToken) {
+        // 2. Validar que el token sigue siendo válido
+        final isValid = await _service.validateToken();
+        
+        if (isValid) {
+          debugPrint('✅ Token válido, auto-login exitoso');
+          _isAuthenticated = true;
+          
+          // Cargar patientId si no está
+          if (_service.patientId == null) {
+            await _service.fetchPatientId();
+          }
+          
+          await _initialFetch();
+          await loadSettings();
+          _startPolling();
+          _setLoading(false);
+          notifyListeners();
+          return true;
+        }
+        
+        debugPrint('⚠️  Token expirado, intentando re-login con credenciales');
+      }
+      
+      // 3. Si el token no existe o expiró, intentar login con credenciales guardadas
+      final credentials = await _service.loadCredentials();
+      
+      if (credentials != null) {
+        final email = credentials['email']!;
+        final password = credentials['password']!;
+        
+        debugPrint('🔄 Intentando re-login con credenciales guardadas');
+        
+        await _service.login(email, password);
+        await _service.fetchPatientId();
+        await _service.saveToken();  // Guardar nuevo token
+        
+        _isAuthenticated = true;
+        _userEmail = email;
+        
+        await _initialFetch();
+        await loadSettings();
+        _startPolling();
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      }
+      
+      debugPrint('ℹ️  No hay credenciales guardadas');
+      _setLoading(false);
+      notifyListeners();
+      return false;
+      
+    } catch (e) {
+      debugPrint('❌ Auto-login falló: $e');
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void logout() async {
     _service.logout();
+    await _service.clearCredentials();  // Limpiar credenciales guardadas
     _isAuthenticated = false;
     _userEmail = null;  // Limpiar email
     _readings.clear();

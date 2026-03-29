@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LibreLinkService {
   static const _baseUrl = 'https://api-eu.libreview.io';
@@ -26,6 +27,7 @@ class LibreLinkService {
   String? lastName;
 
   bool get isAuthenticated => _token != null;
+  String? get patientId => _patientId;
 
   Map<String, String> get _authHeaders => {
     ..._baseHeaders,
@@ -236,6 +238,115 @@ class LibreLinkService {
   void logout() {
     _token = _patientId = _accountId = null;
     firstName = lastName = null;
+  }
+
+  // ── Persistencia de Credenciales ─────────────────────────
+
+  /// Guarda las credenciales del usuario en SharedPreferences
+  Future<void> saveCredentials(String email, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Codificar las credenciales en base64 para ofuscar (no es encriptación real)
+    final encodedEmail = base64Encode(utf8.encode(email));
+    final encodedPassword = base64Encode(utf8.encode(password));
+    
+    await prefs.setString('libre_email', encodedEmail);
+    await prefs.setString('libre_password', encodedPassword);
+    
+    debugPrint('✅ Credenciales guardadas');
+  }
+
+  /// Guarda el token de autenticación
+  Future<void> saveToken() async {
+    if (_token == null) return;
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('libre_token', _token!);
+    if (_accountId != null) {
+      await prefs.setString('libre_account_id', _accountId!);
+    }
+    if (_patientId != null) {
+      await prefs.setString('libre_patient_id', _patientId!);
+    }
+    if (firstName != null) {
+      await prefs.setString('libre_first_name', firstName!);
+    }
+    if (lastName != null) {
+      await prefs.setString('libre_last_name', lastName!);
+    }
+    
+    debugPrint('✅ Token guardado');
+  }
+
+  /// Carga las credenciales guardadas
+  Future<Map<String, String>?> loadCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    final encodedEmail = prefs.getString('libre_email');
+    final encodedPassword = prefs.getString('libre_password');
+    
+    if (encodedEmail == null || encodedPassword == null) {
+      return null;
+    }
+    
+    try {
+      final email = utf8.decode(base64Decode(encodedEmail));
+      final password = utf8.decode(base64Decode(encodedPassword));
+      return {'email': email, 'password': password};
+    } catch (e) {
+      debugPrint('⚠️  Error decodificando credenciales: $e');
+      return null;
+    }
+  }
+
+  /// Carga el token guardado
+  Future<bool> loadToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    _token = prefs.getString('libre_token');
+    _accountId = prefs.getString('libre_account_id');
+    _patientId = prefs.getString('libre_patient_id');
+    firstName = prefs.getString('libre_first_name');
+    lastName = prefs.getString('libre_last_name');
+    
+    if (_token != null) {
+      debugPrint('✅ Token cargado desde SharedPreferences');
+      return true;
+    }
+    
+    return false;
+  }
+
+  /// Limpia todas las credenciales guardadas
+  Future<void> clearCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('libre_email');
+    await prefs.remove('libre_password');
+    await prefs.remove('libre_token');
+    await prefs.remove('libre_account_id');
+    await prefs.remove('libre_patient_id');
+    await prefs.remove('libre_first_name');
+    await prefs.remove('libre_last_name');
+    
+    debugPrint('✅ Credenciales limpiadas');
+  }
+
+  /// Valida si el token actual sigue siendo válido
+  Future<bool> validateToken() async {
+    if (_token == null) return false;
+    
+    try {
+      // Intentar hacer una llamada simple para validar el token
+      final response = await http.get(
+        Uri.parse('$_baseUrl/llu/connections'),
+        headers: _authHeaders,
+      );
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('⚠️  Token inválido: $e');
+      return false;
+    }
   }
 }
 
