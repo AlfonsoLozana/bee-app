@@ -1,4 +1,5 @@
 enum ChartRange {
+  sixHours ('6H', Duration(hours: 6)),
   oneDay   ('1D', Duration(days: 1)),
   threeDays('3D', Duration(days: 3)),
   oneWeek  ('1S', Duration(days: 7)),

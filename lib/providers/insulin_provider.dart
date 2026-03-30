@@ -5,6 +5,7 @@ import '../services/libre_link_service.dart';
 import '../services/database_service.dart';
 import '../models/chart_range.dart';
 import '../models/insulin_reading.dart';
+import '../models/daily_pattern_reading.dart';
 
 class InsulinProvider extends ChangeNotifier {
   final LibreLinkService _service = LibreLinkService();
@@ -32,24 +33,32 @@ class InsulinProvider extends ChangeNotifier {
   double get currentValue => _currentValue;
 
   List<InsulinReading> _readings = [];
+  List<DailyPatternReading> _dailyPattern = [];
 
   ChartRange _selectedRange = ChartRange.oneDay;
   ChartRange get selectedRange => _selectedRange;
 
-  double _minToday = 0;
-  double _maxToday = 0;
-  double _averageToday = 0;
-  double _tir = 0;
-  double _cv = 0;
+  /// Indica si el rango actual necesita mostrar patrón diario promedio
+  bool get needsPattern => 
+    _selectedRange == ChartRange.threeDays ||
+    _selectedRange == ChartRange.oneWeek ||
+    _selectedRange == ChartRange.oneMonth ||
+    _selectedRange == ChartRange.threeMonths;
+
+  double _minPeriod = 0;
+  double _maxPeriod = 0;
+  double _averagePeriod = 0;
+  double _tirPeriod = 0;
+  double _cvPeriod = 0;
   double? _yesterdayAvg;
 
-  double get minToday     => _minToday;
-  double get maxToday     => _maxToday;
-  double get averageToday => _averageToday;
-  double get tir          => _tir;
-  double get cv           => _cv;
-  double get hba1cEst     => _averageToday > 0 
-      ? double.parse(((_averageToday + 46.7) / 28.7).toStringAsFixed(2))
+  double get minToday     => _minPeriod;
+  double get maxToday     => _maxPeriod;
+  double get averageToday => _averagePeriod;
+  double get tir          => _tirPeriod;
+  double get cv           => _cvPeriod;
+  double get hba1cEst     => _averagePeriod > 0 
+      ? double.parse(((_averagePeriod + 46.7) / 28.7).toStringAsFixed(2))
       : 0.0;
   
   List<DoseRecord> _doses = [];
@@ -108,9 +117,9 @@ class InsulinProvider extends ChangeNotifier {
   
   // Comparación con ayer: "↑ 5% vs ayer" o null si no hay datos
   String? get yesterdayComparison {
-    if (_yesterdayAvg == null || _averageToday == 0) return null;
+    if (_yesterdayAvg == null || _averagePeriod == 0) return null;
     
-    final diff = _averageToday - _yesterdayAvg!;
+    final diff = _averagePeriod - _yesterdayAvg!;
     final pct = (diff / _yesterdayAvg!) * 100;
     
     if (pct.abs() < 1) return null;  // Diferencia menor a 1% no se muestra
@@ -120,6 +129,7 @@ class InsulinProvider extends ChangeNotifier {
   }
 
   List<InsulinReading> get readings => _filteredReadings();
+  List<DailyPatternReading> get dailyPattern => _dailyPattern;
 
   Timer? _pollTimer;
   static const _pollInterval = Duration(minutes: 1);
@@ -259,6 +269,7 @@ class InsulinProvider extends ChangeNotifier {
 
   Future<void> _loadFromDatabase() async {
     final hours = switch (_selectedRange) {
+      ChartRange.sixHours    => 6,
       ChartRange.oneDay      => 24,
       ChartRange.threeDays   => 72,
       ChartRange.oneWeek     => 168,
@@ -266,22 +277,66 @@ class InsulinProvider extends ChangeNotifier {
       ChartRange.threeMonths => 2160,
     };
 
-    final dbReadings = await DatabaseService.getReadings(hours: hours);
-    _readings = dbReadings
-        .map((r) => InsulinReading(timestamp: r.timestamp, value: r.value))
-        .toList();
+    // Decidir el modo de visualización
+    if (needsPattern) {
+      // Para períodos largos (3D+): mostrar patrón diario promedio
+      final days = switch (_selectedRange) {
+        ChartRange.threeDays   => 3,
+        ChartRange.oneWeek     => 7,
+        ChartRange.oneMonth    => 30,
+        ChartRange.threeMonths => 90,
+        _ => 1,
+      };
+      
+      _dailyPattern = await DatabaseService.getDailyPattern(
+        days: days,
+        intervalMinutes: 1, // Resolución de 1 minuto para patrón diario
+      );
+      _readings = []; // Limpiar lecturas raw
+      
+      debugPrint('📊 Patrón diario: ${_dailyPattern.length} franjas horarias (${_selectedRange.label}, $days días, 1 min)');
+      
+    } else if (_selectedRange == ChartRange.oneDay) {
+      // Día natural: desde 00:00 hasta 24:00 de HOY, agrupado por 5 minutos
+      final dbReadings = await DatabaseService.getAggregatedReadings(
+        intervalMinutes: 5,
+      );
+      _readings = dbReadings
+          .map((r) => InsulinReading(timestamp: r.timestamp, value: r.value))
+          .toList();
+      _dailyPattern = []; // Limpiar patrón
+      
+      debugPrint('📊 Día natural: ${_readings.length} lecturas agregadas (5 min) desde 00:00');
+      
+    } else {
+      // 6H: Últimas 6 horas desde ahora (rolling), sin agrupar
+      final dbReadings = await DatabaseService.getReadings(hours: hours);
+      _readings = dbReadings
+          .map((r) => InsulinReading(timestamp: r.timestamp, value: r.value))
+          .toList();
+      _dailyPattern = []; // Limpiar patrón
+      
+      final now = DateTime.now();
+      final since = now.subtract(Duration(hours: hours));
+      debugPrint('📊 Últimas ${hours}H: ${_readings.length} lecturas sin agrupar (desde ${since.hour}:${since.minute.toString().padLeft(2, '0')} hasta ${now.hour}:${now.minute.toString().padLeft(2, '0')})');
+    }
 
     final latest = await DatabaseService.getLatestReading();
     if (latest != null) _currentValue = latest.value;
 
-    final stats = await DatabaseService.getDayStats();
-    _minToday     = stats['min'] ?? 0;
-    _maxToday     = stats['max'] ?? 0;
-    _averageToday = stats['avg'] ?? 0;
-    _tir          = stats['tir'] ?? 0;
+    // Calcular estadísticas del período seleccionado
+    final stats = await DatabaseService.getStatsForPeriod(
+      hours: hours,
+      lowLimit: _lowLimit,
+      highLimit: _highLimit,
+    );
+    _minPeriod     = stats['min'] ?? 0;
+    _maxPeriod     = stats['max'] ?? 0;
+    _averagePeriod = stats['avg'] ?? 0;
+    _tirPeriod     = stats['tir'] ?? 0;
 
-    // Cargar CV del día actual
-    _cv = await DatabaseService.getCVToday();
+    // Cargar CV del período seleccionado
+    _cvPeriod = await DatabaseService.getCVForPeriod(hours: hours);
 
     // Cargar promedio de ayer para comparación
     _yesterdayAvg = await DatabaseService.getYesterdayAverage();
@@ -338,6 +393,7 @@ class InsulinProvider extends ChangeNotifier {
   List<InsulinReading> _filteredReadings() {
     if (_readings.isEmpty) return [];
     final cutoff = DateTime.now().subtract(switch (_selectedRange) {
+      ChartRange.sixHours    => const Duration(hours: 6),
       ChartRange.oneDay      => const Duration(hours: 24),
       ChartRange.threeDays   => const Duration(days: 3),
       ChartRange.oneWeek     => const Duration(days: 7),

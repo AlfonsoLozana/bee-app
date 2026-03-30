@@ -1,8 +1,10 @@
-import 'dart:math' show sqrt;
+import 'dart:math' show sqrt, min, max;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/material.dart';
 import 'libre_link_service.dart';
 import '../models/insulin_reading.dart';
+import '../models/daily_pattern_reading.dart';
 
 class DatabaseService {
   static Database? _db;
@@ -105,6 +107,94 @@ class DatabaseService {
     )).toList();
   }
 
+  /// Lecturas desde un timestamp específico (para día natural)
+  static Future<List<GlucoseReading>> getReadingsSince(int sinceTimestamp) async {
+    final db = await database;
+    
+    final rows = await db.query(
+      'glucose_readings',
+      where: 'timestamp >= ?',
+      whereArgs: [sinceTimestamp],
+      orderBy: 'timestamp ASC',
+    );
+
+    return rows.map((row) => GlucoseReading(
+      timestamp: DateTime.fromMillisecondsSinceEpoch(row['timestamp'] as int),
+      value:     row['value'] as double,
+      isHigh:    (row['is_high'] as int) == 1,
+      isLow:     (row['is_low']  as int) == 1,
+    )).toList();
+  }
+
+  /// Lecturas agregadas por intervalos de tiempo desde medianoche (para día natural con promedio)
+  /// 
+  /// Este método agrupa lecturas en intervalos de N minutos desde las 00:00 del día actual
+  /// y calcula el promedio de todas las lecturas en cada intervalo.
+  /// 
+  /// @param intervalMinutes: tamaño del intervalo en minutos (ej: 5 para franjas de 5 min)
+  /// @return: Lista de lecturas promediadas por intervalo temporal
+  static Future<List<GlucoseReading>> getAggregatedReadings({
+    int intervalMinutes = 5,
+  }) async {
+    final db = await database;
+    
+    // Calcular timestamp de medianoche (00:00 del día actual)
+    final now = DateTime.now();
+    final startOfDay = now.copyWith(hour: 0, minute: 0, second: 0, millisecond: 0);
+    final startTimestamp = startOfDay.millisecondsSinceEpoch;
+    
+    // Obtener todas las lecturas del día
+    final rows = await db.rawQuery('''
+      SELECT 
+        timestamp,
+        value
+      FROM glucose_readings
+      WHERE timestamp >= ?
+      ORDER BY timestamp ASC
+    ''', [startTimestamp]);
+    
+    if (rows.isEmpty) return [];
+    
+    // Agrupar por intervalo de minutos
+    final Map<int, List<double>> intervals = {};
+    
+    for (final row in rows) {
+      final ts = DateTime.fromMillisecondsSinceEpoch(row['timestamp'] as int);
+      final minuteOfDay = ts.hour * 60 + ts.minute;
+      
+      // Redondear al intervalo más cercano
+      final intervalKey = (minuteOfDay ~/ intervalMinutes) * intervalMinutes;
+      
+      intervals.putIfAbsent(intervalKey, () => []);
+      intervals[intervalKey]!.add((row['value'] as num).toDouble());
+    }
+    
+    // Calcular promedio para cada intervalo y crear lecturas
+    final result = <GlucoseReading>[];
+    
+    for (final entry in intervals.entries.toList()..sort((a, b) => a.key.compareTo(b.key))) {
+      final minuteOfDay = entry.key;
+      final values = entry.value;
+      
+      if (values.isEmpty) continue;
+      
+      // Calcular promedio
+      final avgValue = values.reduce((a, b) => a + b) / values.length;
+      
+      // Crear timestamp para este intervalo
+      final intervalTime = startOfDay.add(Duration(minutes: minuteOfDay));
+      
+      result.add(GlucoseReading(
+        timestamp: intervalTime,
+        value: avgValue,
+        isHigh: false, // No calculamos límites en agregaciones
+        isLow: false,
+      ));
+    }
+    
+    return result;
+  }
+
   /// Lectura más reciente
   static Future<GlucoseReading?> getLatestReading() async {
     final db = await database;
@@ -120,11 +210,23 @@ class DatabaseService {
     );
   }
 
-  /// Stats del día actual
+  /// Stats del día actual (mantener para compatibilidad)
   static Future<Map<String, double>> getDayStats() async {
+    return getStatsForPeriod(hours: 24);
+  }
+
+  /// Stats genérico para cualquier período de horas
+  /// @param hours: número de horas hacia atrás desde ahora
+  /// @param lowLimit: límite bajo personalizado para TIR
+  /// @param highLimit: límite alto personalizado para TIR
+  static Future<Map<String, double>> getStatsForPeriod({
+    required int hours,
+    int lowLimit = 70,
+    int highLimit = 180,
+  }) async {
     final db = await database;
-    final startOfDay = DateTime.now()
-        .copyWith(hour: 0, minute: 0, second: 0, millisecond: 0)
+    final since = DateTime.now()
+        .subtract(Duration(hours: hours))
         .millisecondsSinceEpoch;
 
     final rows = await db.rawQuery('''
@@ -133,10 +235,10 @@ class DatabaseService {
         MAX(value)  AS max_val,
         AVG(value)  AS avg_val,
         COUNT(*)    AS total,
-        SUM(CASE WHEN value >= 70 AND value <= 180 THEN 1 ELSE 0 END) AS in_range
+        SUM(CASE WHEN value >= ? AND value <= ? THEN 1 ELSE 0 END) AS in_range
       FROM glucose_readings
       WHERE timestamp >= ?
-    ''', [startOfDay]);
+    ''', [lowLimit, highLimit, since]);
 
     if (rows.isEmpty || rows.first['total'] == 0) {
       return {'min': 0, 'max': 0, 'avg': 0, 'tir': 0};
@@ -154,16 +256,22 @@ class DatabaseService {
     };
   }
 
-  /// Calcular coeficiente de variación del día actual
+  /// Calcular coeficiente de variación del día actual (mantener para compatibilidad)
   static Future<double> getCVToday() async {
+    return getCVForPeriod(hours: 24);
+  }
+
+  /// Calcular coeficiente de variación para cualquier período
+  /// @param hours: número de horas hacia atrás desde ahora
+  static Future<double> getCVForPeriod({required int hours}) async {
     final db = await database;
-    final startOfDay = DateTime.now()
-        .copyWith(hour: 0, minute: 0, second: 0, millisecond: 0)
+    final since = DateTime.now()
+        .subtract(Duration(hours: hours))
         .millisecondsSinceEpoch;
     
     final rows = await db.rawQuery('''
       SELECT value FROM glucose_readings WHERE timestamp >= ?
-    ''', [startOfDay]);
+    ''', [since]);
     
     if (rows.length < 2) return 0.0;
     
@@ -198,6 +306,83 @@ class DatabaseService {
     if (rows.isEmpty || rows.first['total'] == 0) return null;
     
     return (rows.first['avg_val'] as num?)?.toDouble();
+  }
+
+  /// Calcular patrón glucémico diario promedio
+  /// 
+  /// Este método agrupa lecturas por franja horaria del día (ej: 08:00-08:05)
+  /// y calcula la media y desviación estándar para cada franja basándose en
+  /// múltiples días de datos. El resultado es un "día típico" que muestra
+  /// el patrón glucémico promedio.
+  /// 
+  /// @param days: número de días completos hacia atrás desde hoy
+  /// @param intervalMinutes: resolución temporal (1 min = 1440 franjas/día, 5 min = 288 franjas/día)
+  /// @return: Lista de lecturas promedio por franja horaria (00:00-24:00)
+  static Future<List<DailyPatternReading>> getDailyPattern({
+    required int days,
+    int intervalMinutes = 1,
+  }) async {
+    final db = await database;
+    
+    // Calcular rango de días (días completos hacia atrás)
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: days))
+        .copyWith(hour: 0, minute: 0, second: 0, millisecond: 0);
+    final since = startDate.millisecondsSinceEpoch;
+    
+    // Obtener todas las lecturas del período
+    final rows = await db.rawQuery('''
+      SELECT 
+        timestamp,
+        value
+      FROM glucose_readings
+      WHERE timestamp >= ?
+      ORDER BY timestamp ASC
+    ''', [since]);
+    
+    if (rows.isEmpty) return [];
+    
+    // Agrupar por franja horaria del día
+    // Clave: minutos desde medianoche (0-1439)
+    // Valor: List<double> valores de glucosa
+    final Map<int, List<double>> timeSlots = {};
+    
+    for (final row in rows) {
+      final ts = DateTime.fromMillisecondsSinceEpoch(row['timestamp'] as int);
+      final minuteOfDay = ts.hour * 60 + ts.minute;
+      
+      // Redondear a la franja de intervalo más cercana
+      final slotMinute = (minuteOfDay ~/ intervalMinutes) * intervalMinutes;
+      
+      timeSlots.putIfAbsent(slotMinute, () => []);
+      timeSlots[slotMinute]!.add((row['value'] as num).toDouble());
+    }
+    
+    // Calcular estadísticas para cada franja
+    final result = <DailyPatternReading>[];
+    
+    for (int minute = 0; minute < 1440; minute += intervalMinutes) {
+      final values = timeSlots[minute];
+      
+      // Requiere al menos 2 lecturas para calcular desviación
+      if (values == null || values.length < 2) continue;
+      
+      final mean = values.reduce((a, b) => a + b) / values.length;
+      final stdDev = DailyPatternReading.calculateStdDev(values, mean);
+      final minVal = values.reduce(min);
+      final maxVal = values.reduce(max);
+      
+      result.add(DailyPatternReading(
+        timeOfDay: TimeOfDay(hour: minute ~/ 60, minute: minute % 60),
+        mean: mean,
+        stdDev: stdDev,
+        min: minVal,
+        max: maxVal,
+        sampleCount: values.length,
+      ));
+    }
+    
+    return result;
   }
 
   // ─────────────────────────────────────────────────────────────
