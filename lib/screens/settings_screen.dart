@@ -13,25 +13,39 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _lowLimitController;
   late TextEditingController _highLimitController;
+  late TextEditingController _hypoThresholdController;
+  late TextEditingController _hyperThresholdController;
 
   @override
   void initState() {
     super.initState();
     final provider = context.read<InsulinProvider>();
-    _lowLimitController = TextEditingController(text: provider.lowLimit.toString());
-    _highLimitController = TextEditingController(text: provider.highLimit.toString());
+    _lowLimitController = TextEditingController(
+      text: provider.lowLimit.toString(),
+    );
+    _highLimitController = TextEditingController(
+      text: provider.highLimit.toString(),
+    );
+    _hypoThresholdController = TextEditingController(
+      text: provider.hypoThreshold.toString(),
+    );
+    _hyperThresholdController = TextEditingController(
+      text: provider.hyperThreshold.toString(),
+    );
   }
 
   @override
   void dispose() {
     _lowLimitController.dispose();
     _highLimitController.dispose();
+    _hypoThresholdController.dispose();
+    _hyperThresholdController.dispose();
     super.dispose();
   }
 
   Future<void> _saveLimits() async {
     final provider = context.read<InsulinProvider>();
-    
+
     final lowValue = int.tryParse(_lowLimitController.text);
     final highValue = int.tryParse(_highLimitController.text);
 
@@ -68,6 +82,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _saveThresholds() async {
+    final provider = context.read<InsulinProvider>();
+
+    final hypoValue = int.tryParse(_hypoThresholdController.text);
+    final hyperValue = int.tryParse(_hyperThresholdController.text);
+
+    if (hypoValue == null || hyperValue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ingresa valores numéricos válidos'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    if (hypoValue >= hyperValue) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'El umbral de hipoglucemia debe ser menor que el de hiperglucemia',
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+
+    await provider.setHypoThreshold(hypoValue);
+    await provider.setHyperThreshold(hyperValue);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Umbrales de eventos críticos actualizados'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,16 +134,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 'Ajustes',
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  fontSize: 32,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.displayLarge?.copyWith(fontSize: 32),
               ),
               const SizedBox(height: 8),
               Text(
                 'Personaliza los límites de glucosa',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textMuted,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
               ),
               const SizedBox(height: 32),
               Container(
@@ -103,9 +158,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       'Límites de Glucosa',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontSize: 18,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(fontSize: 18),
                     ),
                     const SizedBox(height: 20),
                     _buildLimitField(
@@ -150,7 +205,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.primaryDim,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -164,7 +221,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Text(
                         'Estos límites se usan para calcular el TIR (Time In Range) y las alertas visuales en la gráfica.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textPrimary.withOpacity(0.8),
+                          color: AppColors.textPrimary.withValues(alpha: 0.8),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              // Nueva sección: Umbrales para eventos críticos
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.health_and_safety,
+                          color: Color(0xFFEF4444),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Umbrales para Eventos Críticos',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleLarge?.copyWith(fontSize: 18),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _buildLimitField(
+                      label: 'Umbral Hipoglucemia (mg/dL)',
+                      controller: _hypoThresholdController,
+                      hint: 'Ej: 70',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLimitField(
+                      label: 'Umbral Hiperglucemia (mg/dL)',
+                      controller: _hyperThresholdController,
+                      hint: 'Ej: 250',
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _saveThresholds,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEF4444),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Guardar Umbrales',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0x1AEF4444),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x30EF4444)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Color(0xFFEF4444),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Los eventos críticos se cuentan cuando la glucosa está ≥15 minutos consecutivos fuera de estos umbrales.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textPrimary.withValues(alpha: 0.8),
                           fontSize: 13,
                         ),
                       ),

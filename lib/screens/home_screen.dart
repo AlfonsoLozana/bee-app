@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/insulin_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/current_value_card.dart';
 import '../widgets/chart_range_tabs.dart';
@@ -13,7 +11,8 @@ import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-  @override State<HomeScreen> createState() => _HomeScreenState();
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -21,8 +20,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userName = context.watch<InsulinProvider>().userName;
-    
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: IndexedStack(
@@ -31,60 +28,21 @@ class _HomeScreenState extends State<HomeScreen> {
           // Inicio (Dashboard)
           CustomScrollView(
             slivers: [
-              SliverAppBar(
-                pinned: true,
-                backgroundColor: AppColors.surface,
-                surfaceTintColor: Colors.transparent,
-                toolbarHeight: 72,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Row(children: [
-                        Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primary, AppColors.cyan],
-                            ),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                            style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Buenos días,',
-                              style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                            Text('$userName 👋', style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary)),
-                          ],
-                        ),
-                      ]),
-                    ),
-                  ),
-                ),
-              ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                sliver: SliverList(delegate: SliverChildListDelegate([
-                  const CurrentValueCard(),
-                  const SizedBox(height: 16),
-                  const ChartRangeTabs(),
-                  const SizedBox(height: 12),
-                  const InsulinChart(),
-                  const SizedBox(height: 16),
-                  const MiniStatsGrid(),
-                  const SizedBox(height: 8),
-                  const DoseHistoryList(),
-                ])),
+                padding: const EdgeInsets.fromLTRB(20, 60, 20, 100),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const CurrentValueCard(),
+                    const SizedBox(height: 16),
+                    const ChartRangeTabs(),
+                    const SizedBox(height: 12),
+                    const InsulinChart(),
+                    const SizedBox(height: 16),
+                    const MiniStatsGrid(),
+                    const SizedBox(height: 8),
+                    const DoseHistoryList(),
+                  ]),
+                ),
               ),
             ],
           ),
@@ -106,9 +64,18 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _navIndex,
         onTap: (i) => setState(() => _navIndex = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Ajustes'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: 'Perfil'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.show_chart),
+            label: 'Inicio',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            label: 'Ajustes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline_rounded),
+            label: 'Perfil',
+          ),
         ],
       ),
     );

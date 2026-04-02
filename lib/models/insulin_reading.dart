@@ -6,13 +6,15 @@ class InsulinReading {
   const InsulinReading({required this.timestamp, required this.value});
 
   InsulinStatus get status {
+    if (value > 240) return InsulinStatus.criticalHigh;
     if (value > 180) return InsulinStatus.high;
-    if (value < 70)  return InsulinStatus.low;
+    if (value < 54) return InsulinStatus.criticalLow;
+    if (value < 70) return InsulinStatus.low;
     return InsulinStatus.normal;
   }
 }
 
-enum InsulinStatus { normal, high, low }
+enum InsulinStatus { criticalLow, low, normal, high, criticalHigh }
 
 class DoseRecord {
   final DateTime timestamp;

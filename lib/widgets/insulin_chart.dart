@@ -31,55 +31,197 @@ class InsulinChart extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Nivel de Glucosa',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(
-                showsPattern 
-                  ? '$dataCount franjas · ${selectedRange.label}'
-                  : '$dataCount lecturas · ${selectedRange.label}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)
-              ),
-            ]),
-            Row(children: [
-              const _LegendDot(color: AppColors.primary, label: 'Glucosa'),
-              if (showsPattern) ...[
-                const SizedBox(width: 12),
-                _LegendDot(
-                  color: AppColors.primary.withValues(alpha: 0.25), 
-                  label: '±1σ'
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Controles de navegación histórica
+          if (!prov.isViewingToday)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primaryDim,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.3),
                 ),
-              ],
-            ]),
-          ],
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 180,
-          child: dataCount == 0
-            ? const Center(
-                child: Text('No hay datos suficientes para este período',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted))
-              )
-            : LineChart(
-                showsPattern
-                  ? _buildDailyPatternChart(dailyPattern, lowLimit, highLimit)
-                  : _buildRawChart(readings, lowLimit, highLimit, selectedRange),
-                duration: const Duration(milliseconds: 600),
               ),
-        ),
-      ]),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Viendo: ${DateFormat('dd/MM/yyyy').format(prov.selectedDate!)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => prov.goToToday(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Volver a Hoy',
+                      style: TextStyle(fontSize: 12, color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Nivel de Glucosa',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    showsPattern
+                        ? '$dataCount franjas · ${selectedRange.label}'
+                        : '$dataCount lecturas · ${selectedRange.label}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  // Botones de navegación histórica
+                  IconButton(
+                    onPressed: () => prov.goToPreviousDay(),
+                    icon: const Icon(Icons.chevron_left, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.surface3,
+                      foregroundColor: AppColors.textPrimary,
+                      padding: const EdgeInsets.all(8),
+                      minimumSize: const Size(32, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    tooltip: 'Día anterior',
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: prov.selectedDate ?? DateTime.now(),
+                        firstDate: DateTime.now().subtract(
+                          const Duration(days: 365),
+                        ),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.dark(
+                                primary: AppColors.primary,
+                                surface: AppColors.surface,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (date != null) {
+                        prov.setSelectedDate(date);
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_today, size: 16),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.surface3,
+                      foregroundColor: AppColors.textPrimary,
+                      padding: const EdgeInsets.all(8),
+                      minimumSize: const Size(32, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    tooltip: 'Seleccionar fecha',
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: prov.isViewingToday
+                        ? null
+                        : () => prov.goToNextDay(),
+                    icon: const Icon(Icons.chevron_right, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.surface3,
+                      foregroundColor: AppColors.textPrimary,
+                      disabledForegroundColor: AppColors.textFaint,
+                      padding: const EdgeInsets.all(8),
+                      minimumSize: const Size(32, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    tooltip: 'Día siguiente',
+                  ),
+                  const SizedBox(width: 12),
+                  const _LegendDot(color: AppColors.primary, label: 'Glucosa'),
+                  if (showsPattern) ...[
+                    const SizedBox(width: 12),
+                    _LegendDot(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      label: '±1σ',
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 180,
+            child: dataCount == 0
+                ? const Center(
+                    child: Text(
+                      'No hay datos suficientes para este período',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  )
+                : LineChart(
+                    showsPattern
+                        ? _buildDailyPatternChart(
+                            dailyPattern,
+                            lowLimit,
+                            highLimit,
+                          )
+                        : _buildRawChart(
+                            readings,
+                            lowLimit,
+                            highLimit,
+                            selectedRange,
+                          ),
+                    duration: const Duration(milliseconds: 600),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
   /// Construir gráfica con datos raw (6H, 1D)
-  LineChartData _buildRawChart(List<InsulinReading> readings, int lowLimit, int highLimit, ChartRange selectedRange) {
+  LineChartData _buildRawChart(
+    List<InsulinReading> readings,
+    int lowLimit,
+    int highLimit,
+    ChartRange selectedRange,
+  ) {
     if (readings.isEmpty) {
       return LineChartData(minY: 50, lineBarsData: []);
     }
@@ -87,26 +229,36 @@ class InsulinChart extends StatelessWidget {
     // Para 1D: eje X fijo 00:00-24:00 (basado en minutos del día)
     // Para 6H: eje X dinámico basado en timestamps
     final is1D = selectedRange == ChartRange.oneDay;
-    
+
     List<FlSpot> spots;
     double minX, maxX;
-    
+
     if (is1D) {
       // 1D: Convertir timestamps a minutos del día (0-1439)
-      final startOfDay = DateTime.now().copyWith(hour: 0, minute: 0, second: 0, millisecond: 0);
+      final startOfDay = DateTime.now().copyWith(
+        hour: 0,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      );
       spots = readings.map((r) {
-        final minuteOfDay = r.timestamp.difference(startOfDay).inMinutes.toDouble();
+        final minuteOfDay = r.timestamp
+            .difference(startOfDay)
+            .inMinutes
+            .toDouble();
         return FlSpot(minuteOfDay, r.value);
       }).toList();
-      
+
       minX = 0;
       maxX = 1439; // 23:59
     } else {
       // 6H: Índices secuenciales
-      spots = readings.asMap().entries
+      spots = readings
+          .asMap()
+          .entries
           .map((e) => FlSpot(e.key.toDouble(), e.value.value))
           .toList();
-      
+
       minX = 0;
       maxX = (readings.length - 1).toDouble();
     }
@@ -119,43 +271,68 @@ class InsulinChart extends StatelessWidget {
         drawVerticalLine: false,
         horizontalInterval: 50,
         getDrawingHorizontalLine: (_) =>
-          FlLine(color: Colors.white.withValues(alpha: 0.04), strokeWidth: 1),
+            FlLine(color: Colors.white.withValues(alpha: 0.04), strokeWidth: 1),
       ),
       titlesData: FlTitlesData(
-        leftTitles: AxisTitles(sideTitles: SideTitles(
-          showTitles: true, reservedSize: 34, interval: 50,
-          getTitlesWidget: (v, _) => Text(v.toInt().toString(),
-            style: const TextStyle(fontSize: 10, color: AppColors.textFaint)),
-        )),
-        bottomTitles: AxisTitles(sideTitles: SideTitles(
-          showTitles: true, reservedSize: 24,
-          interval: is1D ? 240 : _getXAxisInterval(readings.length, selectedRange), // 240 min = 4 horas
-          getTitlesWidget: (val, _) {
-            if (is1D) {
-              // Para 1D: mostrar horas del día (00:00, 04:00, 08:00, etc.)
-              final minute = val.toInt();
-              if (minute < 0 || minute > 1439) return const SizedBox();
-              
-              final hour = minute ~/ 60;
-              if (minute % 240 != 0) return const SizedBox(); // Mostrar solo cada 4 horas
-              
-              return Text(
-                '${hour.toString().padLeft(2, '0')}:00',
-                style: const TextStyle(fontSize: 10, color: AppColors.textFaint)
-              );
-            } else {
-              // Para 6H: mostrar timestamps
-              final idx = val.toInt();
-              if (idx < 0 || idx >= readings.length) return const SizedBox();
-              final timestamp = readings[idx].timestamp;
-              final format = _getDateFormat(selectedRange);
-              return Text(DateFormat(format).format(timestamp),
-                style: const TextStyle(fontSize: 10, color: AppColors.textFaint));
-            }
-          },
-        )),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 34,
+            interval: 50,
+            getTitlesWidget: (v, _) => Text(
+              v.toInt().toString(),
+              style: const TextStyle(fontSize: 10, color: AppColors.textFaint),
+            ),
+          ),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 24,
+            interval: is1D
+                ? 240
+                : _getXAxisInterval(
+                    readings.length,
+                    selectedRange,
+                  ), // 240 min = 4 horas
+            getTitlesWidget: (val, _) {
+              if (is1D) {
+                // Para 1D: mostrar horas del día (00:00, 04:00, 08:00, etc.)
+                final minute = val.toInt();
+                if (minute < 0 || minute > 1439) return const SizedBox();
+
+                final hour = minute ~/ 60;
+                if (minute % 240 != 0)
+                  return const SizedBox(); // Mostrar solo cada 4 horas
+
+                return Text(
+                  '${hour.toString().padLeft(2, '0')}:00',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textFaint,
+                  ),
+                );
+              } else {
+                // Para 6H: mostrar timestamps
+                final idx = val.toInt();
+                if (idx < 0 || idx >= readings.length) return const SizedBox();
+                final timestamp = readings[idx].timestamp;
+                final format = _getDateFormat(selectedRange);
+                return Text(
+                  DateFormat(format).format(timestamp),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textFaint,
+                  ),
+                );
+              }
+            },
+          ),
+        ),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       ),
       borderData: FlBorderData(show: false),
       lineTouchData: LineTouchData(
@@ -164,7 +341,7 @@ class InsulinChart extends StatelessWidget {
           getTooltipItems: (spots) {
             if (spots.isEmpty) return [];
             final spot = spots.first;
-            
+
             if (is1D) {
               // Para 1D: mostrar hora del día
               final minute = spot.x.toInt();
@@ -173,7 +350,10 @@ class InsulinChart extends StatelessWidget {
               return [
                 LineTooltipItem(
                   '${hour.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}\n${spot.y.toStringAsFixed(0)} mg/dL',
-                  const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)
+                  const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ];
             } else {
@@ -181,7 +361,10 @@ class InsulinChart extends StatelessWidget {
               return [
                 LineTooltipItem(
                   '${spot.y.toStringAsFixed(0)} mg/dL',
-                  const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)
+                  const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ];
             }
@@ -255,33 +438,47 @@ class InsulinChart extends StatelessWidget {
         drawVerticalLine: false,
         horizontalInterval: 50,
         getDrawingHorizontalLine: (_) =>
-          FlLine(color: Colors.white.withValues(alpha: 0.04), strokeWidth: 1),
+            FlLine(color: Colors.white.withValues(alpha: 0.04), strokeWidth: 1),
       ),
       titlesData: FlTitlesData(
-        leftTitles: AxisTitles(sideTitles: SideTitles(
-          showTitles: true, reservedSize: 34, interval: 50,
-          getTitlesWidget: (v, _) => Text(v.toInt().toString(),
-            style: const TextStyle(fontSize: 10, color: AppColors.textFaint)),
-        )),
-        bottomTitles: AxisTitles(sideTitles: SideTitles(
-          showTitles: true, reservedSize: 24,
-          interval: 240, // 4 horas en minutos
-          getTitlesWidget: (val, _) {
-            final minute = val.toInt();
-            if (minute < 0 || minute > 1439) return const SizedBox();
-            
-            final hour = minute ~/ 60;
-            // Mostrar solo horas exactas (00:00, 04:00, 08:00, etc.)
-            if (minute % 240 != 0) return const SizedBox();
-            
-            return Text(
-              '${hour.toString().padLeft(2, '0')}:00',
-              style: const TextStyle(fontSize: 10, color: AppColors.textFaint)
-            );
-          },
-        )),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 34,
+            interval: 50,
+            getTitlesWidget: (v, _) => Text(
+              v.toInt().toString(),
+              style: const TextStyle(fontSize: 10, color: AppColors.textFaint),
+            ),
+          ),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 24,
+            interval: 240, // 4 horas en minutos
+            getTitlesWidget: (val, _) {
+              final minute = val.toInt();
+              if (minute < 0 || minute > 1439) return const SizedBox();
+
+              final hour = minute ~/ 60;
+              // Mostrar solo horas exactas (00:00, 04:00, 08:00, etc.)
+              if (minute % 240 != 0) return const SizedBox();
+
+              return Text(
+                '${hour.toString().padLeft(2, '0')}:00',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textFaint,
+                ),
+              );
+            },
+          ),
+        ),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       ),
       borderData: FlBorderData(show: false),
       lineTouchData: LineTouchData(
@@ -289,25 +486,37 @@ class InsulinChart extends StatelessWidget {
           getTooltipColor: (_) => AppColors.surface3,
           getTooltipItems: (spots) {
             if (spots.isEmpty) return [];
-            
+
             // Encontrar el punto más cercano en pattern
             final touchedX = spots.first.x;
             final closestPattern = pattern.reduce((a, b) {
               final aMinute = a.timeOfDay.hour * 60 + a.timeOfDay.minute;
               final bMinute = b.timeOfDay.hour * 60 + b.timeOfDay.minute;
-              return ((aMinute - touchedX).abs() < (bMinute - touchedX).abs()) ? a : b;
+              return ((aMinute - touchedX).abs() < (bMinute - touchedX).abs())
+                  ? a
+                  : b;
             });
-            
-            final hour = closestPattern.timeOfDay.hour.toString().padLeft(2, '0');
-            final minute = closestPattern.timeOfDay.minute.toString().padLeft(2, '0');
-            
+
+            final hour = closestPattern.timeOfDay.hour.toString().padLeft(
+              2,
+              '0',
+            );
+            final minute = closestPattern.timeOfDay.minute.toString().padLeft(
+              2,
+              '0',
+            );
+
             return [
               LineTooltipItem(
                 '$hour:$minute\n'
                 'Media: ${closestPattern.mean.toStringAsFixed(0)} mg/dL\n'
                 'Rango: ${closestPattern.min.toStringAsFixed(0)}-${closestPattern.max.toStringAsFixed(0)}\n'
                 '${closestPattern.sampleCount} muestras',
-                const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 11),
+                const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
               ),
             ];
           },
@@ -324,23 +533,32 @@ class InsulinChart extends StatelessWidget {
         BetweenBarsData(
           fromIndex: 0,
           toIndex: 1,
-          color: AppColors.primary.withValues(alpha: 0.25),
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primary.withValues(alpha: 0.20),
+              AppColors.primary.withValues(alpha: 0.10),
+            ],
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+          ),
         ),
       ],
       lineBarsData: [
         // Línea superior (invisible, para BetweenBarsData)
         LineChartBarData(
           spots: upperSpots,
-          show: false,
+          color: Colors.transparent,
+          barWidth: 0,
           dotData: const FlDotData(show: false),
         ),
         // Línea inferior (invisible, para BetweenBarsData)
         LineChartBarData(
           spots: lowerSpots,
-          show: false,
+          color: Colors.transparent,
+          barWidth: 0,
           dotData: const FlDotData(show: false),
         ),
-        // Línea de media (visible)
+        // Línea de media (visible) - dibujada al final para que esté encima
         LineChartBarData(
           spots: meanSpots,
           color: AppColors.primary,
@@ -348,6 +566,10 @@ class InsulinChart extends StatelessWidget {
           isCurved: true,
           curveSmoothness: 0.3,
           dotData: const FlDotData(show: false),
+          shadow: Shadow(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            blurRadius: 4,
+          ),
         ),
       ],
     );
@@ -389,22 +611,43 @@ class InsulinChart extends StatelessWidget {
   String _getDateFormat(ChartRange range) {
     return switch (range) {
       ChartRange.sixHours || ChartRange.oneDay => 'HH:mm',
-      ChartRange.threeDays || ChartRange.oneWeek || ChartRange.oneMonth || ChartRange.threeMonths => 'dd/MM',
+      ChartRange.threeDays ||
+      ChartRange.oneWeek ||
+      ChartRange.oneMonth ||
+      ChartRange.threeMonths => 'dd/MM',
     };
   }
 
   /// Calcular intervalo apropiado para el eje X según el rango
   double _getXAxisInterval(int readingsCount, ChartRange range) {
     if (readingsCount == 0) return 1;
-    
+
     // Aproximadamente 4-5 labels en el eje X
     return switch (range) {
-      ChartRange.sixHours    => (readingsCount / 4).ceilToDouble().clamp(1, readingsCount.toDouble()),
-      ChartRange.oneDay      => (readingsCount / 5).ceilToDouble().clamp(1, readingsCount.toDouble()),
-      ChartRange.threeDays   => (readingsCount / 4).ceilToDouble().clamp(1, readingsCount.toDouble()),
-      ChartRange.oneWeek     => (readingsCount / 5).ceilToDouble().clamp(1, readingsCount.toDouble()),
-      ChartRange.oneMonth    => (readingsCount / 5).ceilToDouble().clamp(1, readingsCount.toDouble()),
-      ChartRange.threeMonths => (readingsCount / 4).ceilToDouble().clamp(1, readingsCount.toDouble()),
+      ChartRange.sixHours => (readingsCount / 4).ceilToDouble().clamp(
+        1,
+        readingsCount.toDouble(),
+      ),
+      ChartRange.oneDay => (readingsCount / 5).ceilToDouble().clamp(
+        1,
+        readingsCount.toDouble(),
+      ),
+      ChartRange.threeDays => (readingsCount / 4).ceilToDouble().clamp(
+        1,
+        readingsCount.toDouble(),
+      ),
+      ChartRange.oneWeek => (readingsCount / 5).ceilToDouble().clamp(
+        1,
+        readingsCount.toDouble(),
+      ),
+      ChartRange.oneMonth => (readingsCount / 5).ceilToDouble().clamp(
+        1,
+        readingsCount.toDouble(),
+      ),
+      ChartRange.threeMonths => (readingsCount / 4).ceilToDouble().clamp(
+        1,
+        readingsCount.toDouble(),
+      ),
     };
   }
 }
@@ -415,10 +658,18 @@ class _LegendDot extends StatelessWidget {
   const _LegendDot({required this.color, required this.label});
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Container(width: 8, height: 8,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-    const SizedBox(width: 5),
-    Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-  ]);
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 5),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+      ),
+    ],
+  );
 }
